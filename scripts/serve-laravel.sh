@@ -19,6 +19,43 @@ location /ZendServer {
 else configureZray=""
 fi
 
+if [ "$8" = "true" ]
+then 
+    corsOptions="
+    if (\$request_method = 'OPTIONS') {
+          add_header 'Access-Control-Allow-Origin' '*';
+          add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+          #
+          # Custom headers and headers various browsers *should* be OK with but aren't
+          #
+          add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range';
+          #
+          # Tell client that this pre-flight info is valid for 20 days
+          #
+          add_header 'Access-Control-Max-Age' 1728000;
+          add_header 'Content-Type' 'text/plain; charset=utf-8';
+          add_header 'Content-Length' 0;
+          return 204;
+    }"
+   corsGetPost="
+    if (\$request_method = 'POST') {
+          add_header 'Access-Control-Allow-Origin' '*' always;
+          add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
+          add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range' always;
+          add_header 'Access-Control-Expose-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range' always;
+    }
+    if (\$request_method = 'GET') {
+          add_header 'Access-Control-Allow-Origin' '*' always;
+          add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
+          add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range' always;
+          add_header 'Access-Control-Expose-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range' always;
+    }
+"
+else 
+    corsOptions=""
+    corsGetPost=""
+fi
+
 block="server {
     listen ${3:-80};
     listen ${4:-443} ssl http2;
@@ -30,15 +67,19 @@ block="server {
     charset utf-8;
 
     location / {
+        $corsOptions
+
         try_files \$uri \$uri/ /index.php?\$query_string;
     }
+
+
 
     $configureZray
 
     location = /favicon.ico { access_log off; log_not_found off; }
     location = /robots.txt  { access_log off; log_not_found off; }
 
-    access_log off;
+    access_log /var/log/nginx/$1-access.log;
     error_log  /var/log/nginx/$1-error.log error;
 
     sendfile off;
@@ -46,6 +87,10 @@ block="server {
     client_max_body_size 100m;
 
     location ~ \.php$ {
+
+
+        $corsGetPost
+
         fastcgi_split_path_info ^(.+\.php)(/.+)$;
         fastcgi_pass unix:/var/run/php/php$5-fpm.sock;
         fastcgi_index index.php;

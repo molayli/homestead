@@ -216,7 +216,7 @@ class Homestead
                         params += " )"
                     end
                     s.path = scriptDir + "/serve-#{type}.sh"
-                    s.args = [site["map"], site["to"], site["port"] ||= "80", site["ssl"] ||= "443", site["php"] ||= "7.2", params ||= "", site["zray"] ||= "false"]
+                    s.args = [site["map"], site["to"], site["port"] ||= "80", site["ssl"] ||= "443", site["php"] ||= "7.2", params ||= "", site["zray"] ||= "false", site["cors"] ||= "false" ]
 
                     if site["zray"] == 'true'
                         config.vm.provision "shell" do |s|
@@ -411,28 +411,31 @@ class Homestead
             s.privileged = false
         end
 
-        if settings.has_key?("backup") && settings["backup"] && (Vagrant::VERSION >= '2.1.0' || Vagrant.has_plugin('vagrant-triggers'))
-            dirPrefix = '/vagrant/'
-            settings["databases"].each do |database|
-                Homestead.backupMysql(database, "#{dirPrefix}/mysql_backup", config)
-                Homestead.backupPostgres(database, "#{dirPrefix}/postgres_backup", config)
+        # Add config file for supervisor
+        if settings.has_key?("supervisor")
+            config.vm.provision "shell" do |s|
+                s.name = "Cleaning supervisor configs"
+                s.inline = "rm -rf /etc/supervisor/conf.d/laravel_worker_*"
+            end
+
+            settings["supervisor"].each do |queue|
+                config.vm.provision "shell" do |s|
+                    s.path = scriptDir + "/supervisor.sh"
+                    s.args = [queue["name"], queue["path"], queue["numprocs"] ||= "1", queue["user"] ||= "www-data"]
+                end
+            end
+        else
+            config.vm.provision "shell" do |s|
+                s.name = "Cleaning supervisor configs"
+                s.inline = "rm -rf /etc/supervisor/conf.d/laravel_worker_*"
             end
         end
-    end
 
-    def Homestead.backupMysql(database, dir, config)
-        now = Time.now.strftime("%Y%m%d%H%M")
-        config.trigger.before :destroy do |trigger|
-            trigger.warn = "Backing up mysql database #{database}..."
-            trigger.run_remote = {"inline": "mkdir -p #{dir} && mysqldump #{database} > #{dir}/#{database}-#{now}.sql"}
+        #Updating supervisor
+        config.vm.provision "shell" do |s|
+            s.name = "Updating supervisor"
+            s.inline = "supervisorctl reread && supervisorctl update"
         end
-    end
 
-    def Homestead.backupPostgres(database, dir, config)
-        now = Time.now.strftime("%Y%m%d%H%M")
-        config.trigger.before :destroy do |trigger|
-            trigger.warn = "Backing up postgres database #{database}..."
-            trigger.run_remote = {"inline": "mkdir -p #{dir} && echo localhost:5432:#{database}:homestead:secret > ~/.pgpass && chmod 600 ~/.pgpass && pg_dump -U homestead -h localhost #{database} > #{dir}/#{database}-#{now}.sql"}
-        end
     end
 end

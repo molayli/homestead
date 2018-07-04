@@ -16,6 +16,7 @@ folders:
 sites:
     - map: homestead.test
       to: /home/vagrant/code/public
+#      cors: "true"
 
 databases:
     - homestead
@@ -32,3 +33,15 @@ databases:
 #     - send: 7777
 #       to: 777
 #       protocol: udp
+
+
+
+
+# supervisor: 
+#     - name: "email"
+#       path: /home/vagrant/laravel-app
+#       user : vagrant
+
+#     - name: "default"
+#       path: /home/vagrant/laravel-app
+#       user : vagrant
